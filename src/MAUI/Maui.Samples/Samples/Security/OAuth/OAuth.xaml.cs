@@ -44,7 +44,29 @@ namespace ArcGIS.Samples.OAuth
                 ArcGISLoginPrompt.SetChallengeHandler();
 
                 // Connect to the portal (ArcGIS Online, for example).
-                ArcGISPortal arcgisPortal = await ArcGISPortal.CreateAsync(new Uri(ServerUrl));
+                ArcGISPortal arcgisPortal = await ArcGISPortal.CreateAsync(new Uri(ServerUrl), loginRequired: true);
+
+                // Issue: Exception raised when retrieving user entitlements via the multitenant www.arcgis.com URL
+                //
+                // After successful sign-in, calling GetLicenseInfoAsync() against https://www.arcgis.com/sharing/rest
+                // raises the following ArcGISException:
+                // Portal user with no license: Current user type does not include a Runtime license.
+                //    at Esri.ArcGISRuntime.ArcGISException.HandleCoreError(CoreError error, Boolean throwException)
+                //    at RuntimeCoreNet.GeneratedWrappers.Interop.CheckError(IntPtr errorHandle, Boolean throwOnFailure, GCHandle wrapperHandle)
+                //    at RuntimeCoreNet.GeneratedWrappers.CoreTask.Get()
+                //    at Esri.ArcGISRuntime.Internal.CoreTaskExtensions.TaskCompletedCallbackHandler`1.RuntimeCoreNet.GeneratedWrappers.ICoreCallback_Task_Completed.Completed()
+                // --- End of stack trace from previous location ---
+                //    at Esri.ArcGISRuntime.Portal.ArcGISPortal.< GetLicenseInfoAsync > d__41.MoveNext()
+                //    at ArcGIS.Samples.OAuth.OAuth.< Initialize > d__3.MoveNext() in F:\Maui\arcgis - maps - sdk - dotnet - samples\src\MAUI\Maui.Samples\Samples\Security\OAuth\OAuth.xaml.cs:line 66
+                //
+                // Workaround:
+                //
+                // Use a single-tenant https://organization.maps.arcgis.com URL instead of https://www.arcgis.com.
+                // The problem no longer occurs when using the organization-specific URL.
+                var licenseInfo = await arcgisPortal.GetLicenseInfoAsync();
+
+                // If successful, show the entitlements.
+                await Application.Current.Windows[0].Page.DisplayAlertAsync("Entitlements check", licenseInfo.ToJson(), "OK");
 
                 // Get a web map portal item using its ID.
                 // If the item contains layers not shared publicly, the user will be challenged for credentials at this point.
